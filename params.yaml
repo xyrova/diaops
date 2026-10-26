@@ -10,11 +10,13 @@ train:
   seed: 42
   n_jobs: 4             # pinned thread count for deterministic XGBoost results
   xgboost:
-    n_estimators: 300
+    n_estimators: 250
     max_depth: 5
-    learning_rate: 0.1
+    learning_rate: 0.03
     subsample: 0.8
     colsample_bytree: 0.8
+    min_child_weight: 10     # higher = fewer, larger leaves (less overfitting)
+    reg_lambda: 5            # L2 penalty on leaf weights
     scale_pos_weight: auto   # auto = negatives / positives in the training set
   logreg:
     C: 1.0
