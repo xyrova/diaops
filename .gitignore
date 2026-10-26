@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+CLAUDE.md 
+*.pdf
+
+# DiaOps: data and models never go into Git (DVC tracks them)
+data/*.csv
+data/incoming/
