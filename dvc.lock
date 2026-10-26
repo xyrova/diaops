@@ -1,0 +1,133 @@
+schema: '2.0'
+stages:
+  validate:
+    cmd: python -m src.validate
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 4c62864f5eb58eec4d684252fced44cf.dir
+      size: 13642890
+      nfiles: 1
+    - path: src/features.py
+      hash: md5
+      md5: 043fa46d6f556156b74521a9d5eeaf61
+      size: 1123
+    - path: src/validate.py
+      hash: md5
+      md5: 5fcfb151839f3127df33b2d9a3248e97
+      size: 2916
+    outs:
+    - path: reports/validation.json
+      hash: md5
+      md5: 433806cad04c21990b1844ff7f0934d6
+      size: 111
+  prepare:
+    cmd: python -m src.prepare
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 4c62864f5eb58eec4d684252fced44cf.dir
+      size: 13642890
+      nfiles: 1
+    - path: reports/validation.json
+      hash: md5
+      md5: 433806cad04c21990b1844ff7f0934d6
+      size: 111
+    - path: src/features.py
+      hash: md5
+      md5: 043fa46d6f556156b74521a9d5eeaf61
+      size: 1123
+    - path: src/prepare.py
+      hash: md5
+      md5: a566c002a3de1eb4e06d5b236a27f7a8
+      size: 1126
+    params:
+      params.yaml:
+        prepare:
+          test_size: 0.2
+          seed: 42
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: 34536249f2b7ef2ac03b26cbc79fbded.dir
+      size: 6945951
+      nfiles: 2
+  train:
+    cmd: python -m src.train
+    deps:
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 54fb7b084106beb09a38c26b50bbd153
+      size: 5556638
+    - path: requirements.txt
+      hash: md5
+      md5: 5ecd3aefdb592218de9ddec9321ccd67
+      size: 473
+    - path: src/features.py
+      hash: md5
+      md5: 043fa46d6f556156b74521a9d5eeaf61
+      size: 1123
+    - path: src/train.py
+      hash: md5
+      md5: f00e150b763d0c4e9dc3f62adfbeeb28
+      size: 2198
+    params:
+      params.yaml:
+        train:
+          model: xgboost
+          seed: 42
+          n_jobs: 4
+          xgboost:
+            n_estimators: 300
+            max_depth: 5
+            learning_rate: 0.1
+            subsample: 0.8
+            colsample_bytree: 0.8
+            scale_pos_weight: auto
+          logreg:
+            C: 1.0
+            max_iter: 1000
+    outs:
+    - path: models
+      hash: md5
+      md5: c1ae8ea6db870c49e7074f2ef431ea14.dir
+      size: 1116479
+      nfiles: 1
+  evaluate:
+    cmd: python -m src.evaluate
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 9c9b174e710e708cd22eb9ee592233ba
+      size: 1389313
+    - path: models
+      hash: md5
+      md5: c1ae8ea6db870c49e7074f2ef431ea14.dir
+      size: 1116479
+      nfiles: 1
+    - path: src/evaluate.py
+      hash: md5
+      md5: e7dfe7494201981ad11c888f94dd9060
+      size: 2752
+    - path: src/features.py
+      hash: md5
+      md5: 043fa46d6f556156b74521a9d5eeaf61
+      size: 1123
+    params:
+      params.yaml:
+        evaluate:
+          threshold: 0.5
+        train.model: xgboost
+    outs:
+    - path: metrics.json
+      hash: md5
+      md5: 8bbc6fa4ef18f1097754071529463eae
+      size: 112
+    - path: plots/pr.csv
+      hash: md5
+      md5: ec2c52d3abc1056af6d803dd4c05a70f
+      size: 3561
+    - path: plots/roc.csv
+      hash: md5
+      md5: 795988fd46bf144b03fad0ad598567df
+      size: 3544

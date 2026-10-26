@@ -225,3 +225,4 @@ CLAUDE.md
 # DiaOps: data and models never go into Git (DVC tracks them)
 data/*.csv
 data/incoming/
+/models
