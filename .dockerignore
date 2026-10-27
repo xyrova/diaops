@@ -1,0 +1,10 @@
+# Allow-list: only what the Dockerfile copies goes into the build context.
+*
+!requirements.txt
+!src/__init__.py
+!src/features.py
+!app/
+!params.yaml
+!metrics.json
+!models/model.json
+**/__pycache__

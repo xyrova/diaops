@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DiaOps Risk Check</title>
+  <style>
+    :root {
+      --bg: #f3f5f7; --card: #ffffff; --text: #17202a; --muted: #5d6b7a; --line: #e1e6eb;
+      --soft: #eef2f5; --accent: #0f766e; --accent-soft: #e0f2ef; --on-accent: #ffffff;
+      --low: #15803d; --low-soft: #e3f4e8; --high: #c2410c; --high-soft: #fdebe1;
+      --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 16px rgb(16 24 40 / 0.05);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1418; --card: #171e24; --text: #e7edf2; --muted: #93a1ae; --line: #27313a;
+        --soft: #1e272f; --accent: #2dd4bf; --accent-soft: #123532; --on-accent: #062b27;
+        --low: #4ade80; --low-soft: #13301f; --high: #fb923c; --high-soft: #3a2113;
+        --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+           font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 16px 48px; }
+
+    header { margin-bottom: 24px; }
+    .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
+             color: var(--accent); letter-spacing: 0.02em; font-size: 0.85rem; text-transform: uppercase; }
+    .brand svg { width: 18px; height: 18px; }
+    h1 { font-size: clamp(1.6rem, 3vw, 2.1rem); line-height: 1.2; margin: 6px 0 6px; }
+    .lead { color: var(--muted); margin: 0; max-width: 560px; }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; margin: 0 0 2px; }
+    .card .hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 16px; }
+
+    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+    select, input[type=number] {
+      width: 100%; font: inherit; color: var(--text); background: var(--soft);
+      border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+    select:focus, input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Segmented control built from radio buttons */
+    .seg { display: flex; background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+    .seg label { flex: 1; text-align: center; cursor: pointer; }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg span { display: block; padding: 6px 4px; border-radius: 7px; font-size: 0.85rem; color: var(--muted); }
+    .seg input:checked + span { background: var(--card); color: var(--text); font-weight: 600;
+                                box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+    .seg input:focus-visible + span { outline: 2px solid var(--accent); }
+
+    .bmi-row { margin-top: 16px; }
+    .bmi-calc { display: grid; grid-template-columns: 1fr auto 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 4px; }
+    .or { color: var(--muted); font-size: 0.85rem; }
+    @media (max-width: 480px) { .bmi-calc { grid-template-columns: 1fr 1fr; } .bmi-calc #BMI { grid-column: 1 / -1; } .or { display: none; } }
+    .small { font-size: 0.8rem; color: var(--muted); }
+
+    /* Yes/no switches */
+    .toggles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 20px; }
+    .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+              padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+    .toggle input { appearance: none; flex: none; width: 40px; height: 24px; border-radius: 999px;
+                    background: var(--line); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+    .toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+                           border-radius: 50%; background: #fff; transition: transform .15s; }
+    .toggle input:checked { background: var(--accent); }
+    .toggle input:checked::after { transform: translateX(16px); }
+
+    .range-row { display: flex; align-items: center; gap: 12px; }
+    input[type=range] { flex: 1; accent-color: var(--accent); }
+    output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+    .submit { width: 100%; font: inherit; font-weight: 700; font-size: 1rem; color: var(--on-accent);
+              background: var(--accent); border: 0; border-radius: 11px; padding: 13px; cursor: pointer; }
+    .submit:disabled { opacity: 0.6; cursor: progress; }
+
+    /* Result panel */
+    aside { position: sticky; top: 16px; }
+    .result .placeholder { color: var(--muted); text-align: center; padding: 28px 8px; }
+    .placeholder svg { width: 44px; height: 44px; color: var(--line); margin-bottom: 8px; }
+    .pill { display: inline-block; font-size: 0.8rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+    .pill.low { color: var(--low); background: var(--low-soft); }
+    .pill.elevated, .pill.error { color: var(--high); background: var(--high-soft); }
+    .pct { font-size: 3rem; font-weight: 800; line-height: 1; margin: 12px 0 4px; font-variant-numeric: tabular-nums; }
+    .meter { position: relative; height: 10px; border-radius: 999px; background: var(--soft); margin: 18px 0 6px; }
+    .meter .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width .5s ease; }
+    .meter .fill.low { background: var(--low); }
+    .meter .fill.elevated { background: var(--high); }
+    .meter .tick { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--text); opacity: .5; }
+    .scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+    .advice { margin: 16px 0 0; }
+    .disclaimer { margin-top: 16px; padding: 12px; border-radius: 10px; background: var(--soft);
+                  color: var(--muted); font-size: 0.8rem; }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c3.5 4.4 6 7.9 6 11a6 6 0 0 1-12 0c0-3.1 2.5-6.6 6-11z"/></svg>
+      DiaOps
+    </div>
+    <h1>Type 2 diabetes risk check</h1>
+    <p class="lead">Answer a few questions about your health and habits to get a screening risk score.
+      It takes about a minute. Nothing you enter is stored.</p>
+  </header>
+
+  <div class="layout">
+    <form id="form" novalidate>
+      <section class="card">
+        <h2>Body</h2>
+        <p class="hint">Age, sex and weight are among the strongest risk factors.</p>
+        <div class="fields">
+          <label class="field"><span class="label">Age</span><select name="Age" id="Age"></select></label>
+          <div class="field">
+            <span class="label">Sex</span>
+            <div class="seg" role="radiogroup" aria-label="Sex">
+              <label><input type="radio" name="Sex" value="0" checked><span>Female</span></label>
+              <label><input type="radio" name="Sex" value="1"><span>Male</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="field bmi-row">
+          <label for="BMI"><span class="label">BMI</span></label>
+          <div class="bmi-calc">
+            <input id="BMI" name="BMI" type="number" min="10" max="100" step="1" value="26" required>
+            <span class="or">or</span>
+            <input id="height" type="number" min="100" max="250" placeholder="Height (cm)" aria-label="Height in cm">
+            <input id="weight" type="number" min="25" max="300" placeholder="Weight (kg)" aria-label="Weight in kg">
+          </div>
+          <div class="small">Enter your BMI, or your height and weight to calculate it.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Medical history</h2>
+        <p class="hint">Has a doctor ever told you that you have any of these?</p>
+        <div class="toggles" id="medical"></div>
+      </section>
+
+      <section class="card">
+        <h2>How you've been feeling</h2>
+        <p class="hint">Your own view of your health over the past 30 days.</p>
+        <div class="field" style="margin-bottom:18px">
+          <span class="label">In general, your health is</span>
+          <div class="seg" role="radiogroup" aria-label="General health" id="GenHlth"></div>
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label for="PhysHlth"><span class="label">Poor physical health days</span></label>
+            <div class="range-row"><input type="range" id="PhysHlth" name="PhysHlth" min="0" max="30" value="0"><output for="PhysHlth"></output></div>
+          </div>
+          <div class="field">
+            <label for="MentHlth"><span class="label">Poor mental health days</span></label>
+            <div class="range-row"><input type="range" id="MentHlth" name="MentHlth" min="0" max="30" value="0"><output for="MentHlth"></output></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Lifestyle and check-ups</h2>
+        <p class="hint">Day-to-day habits.</p>
+        <div class="toggles" id="lifestyle"></div>
+      </section>
+
+      <button type="submit" class="submit" id="submit">Check my risk</button>
+    </form>
+
+    <aside>
+      <section class="card result" id="result" aria-live="polite">
+        <div class="placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div>Your result will appear here.</div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+  // Option codes follow the BRFSS 2015 codebook used in training.
+  const AGE_BANDS = ["18-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54",
+                     "55-59", "60-64", "65-69", "70-74", "75-79", "80 or older"];
+  const GEN_HEALTH = ["Excellent", "Very good", "Good", "Fair", "Poor"];
+
+  // [field, label, default checked]
+  const MEDICAL = [
+    ["HighBP", "High blood pressure", false],
+    ["HighChol", "High cholesterol", false],
+    ["HeartDiseaseorAttack", "Heart disease or heart attack", false],
+    ["Stroke", "Stroke", false],
+    ["DiffWalk", "Serious difficulty walking or climbing stairs", false],
+  ];
+  const LIFESTYLE = [
+    ["PhysActivity", "Exercised in the last 30 days (outside work)", true],
+    ["Fruits", "Eat fruit at least once a day", true],
+    ["Veggies", "Eat vegetables at least once a day", true],
+    ["Smoker", "Smoked at least 100 cigarettes in your life", false],
+    ["HvyAlcoholConsump", "Heavy drinking (men 14+, women 7+ drinks a week)", false],
+    ["CholCheck", "Had a cholesterol check in the last 5 years", true],
+  ];
+
+  const $ = (id) => document.getElementById(id);
+
+  AGE_BANDS.forEach((band, i) => $("Age").add(new Option(band, i + 1, false, i === 6)));
+
+  GEN_HEALTH.forEach((text, i) => {
+    $("GenHlth").insertAdjacentHTML("beforeend",
+      `<label><input type="radio" name="GenHlth" value="${i + 1}"${i === 2 ? " checked" : ""}><span>${text}</span></label>`);
+  });
+
+  function addToggles(containerId, items) {
+    for (const [field, text, on] of items) {
+      $(containerId).insertAdjacentHTML("beforeend",
+        `<label class="toggle"><span>${text}</span>
+           <input type="checkbox" role="switch" name="${field}"${on ? " checked" : ""}></label>`);
+    }
+  }
+  addToggles("medical", MEDICAL);
+  addToggles("lifestyle", LIFESTYLE);
+
+  for (const id of ["PhysHlth", "MentHlth"]) {
+    const range = $(id), out = range.nextElementSibling;
+    const show = () => (out.textContent = `${range.value} day${range.value === "1" ? "" : "s"}`);
+    range.addEventListener("input", show);
+    show();
+  }
+
+  // Fill BMI from height and weight when both are given.
+  function updateBmi() {
+    const h = Number($("height").value) / 100, w = Number($("weight").value);
+    if (h > 0 && w > 0) $("BMI").value = Math.min(100, Math.max(10, Math.round(w / (h * h))));
+  }
+  $("height").addEventListener("input", updateBmi);
+  $("weight").addEventListener("input", updateBmi);
+
+  function collect() {
+    const form = $("form");
+    const data = { Age: Number(form.Age.value), BMI: Math.round(Number(form.BMI.value)),
+                   Sex: Number(form.Sex.value), GenHlth: Number(form.GenHlth.value),
+                   PhysHlth: Number(form.PhysHlth.value), MentHlth: Number(form.MentHlth.value) };
+    for (const [field] of [...MEDICAL, ...LIFESTYLE]) data[field] = form[field].checked ? 1 : 0;
+    return data;
+  }
+
+  function render(html) { $("result").innerHTML = html; }
+
+  function renderResult(body) {
+    const pct = body.risk_score * 100;
+    const level = body.risk_level;
+    const advice = level === "elevated"
+      ? "Your answers resemble those of people who have diabetes. Consider asking a doctor about a blood sugar (HbA1c) test."
+      : "Your answers resemble those of people without diabetes. Keep up healthy habits and regular check-ups.";
+    render(`
+      <span class="pill ${level}">${level === "elevated" ? "Elevated risk" : "Lower risk"}</span>
+      <div class="pct">${pct.toFixed(0)}%</div>
+      <div class="small">screening risk score</div>
+      <div class="meter" role="img" aria-label="Risk ${pct.toFixed(0)} percent, threshold ${(body.threshold * 100).toFixed(0)} percent">
+        <div class="fill ${level}" style="width:0%"></div>
+        <div class="tick" style="left:${body.threshold * 100}%" title="Threshold"></div>
+      </div>
+      <div class="scale"><span>0%</span><span>threshold ${(body.threshold * 100).toFixed(0)}%</span><span>100%</span></div>
+      <p class="advice">${advice}</p>
+      <div class="disclaimer">${body.disclaimer}</div>`);
+    requestAnimationFrame(() => ($("result").querySelector(".fill").style.width = `${pct}%`));
+  }
+
+  $("form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const bmi = Number($("BMI").value);
+    if (!(bmi >= 10 && bmi <= 100)) {
+      render(`<span class="pill error">Check your answers</span><p>BMI must be between 10 and 100.</p>`);
+      return;
+    }
+    $("submit").disabled = true;
+    try {
+      const response = await fetch(`${window.API_BASE_URL}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collect()),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        const detail = Array.isArray(body.detail)
+          ? body.detail.map((d) => `${d.loc.at(-1)}: ${d.msg}`).join("<br>") : body.detail;
+        render(`<span class="pill error">Invalid input</span><p class="small">${detail}</p>`);
+        return;
+      }
+      renderResult(body);
+    } catch (err) {
+      render(`<span class="pill error">Service unavailable</span>
+              <p class="small">Could not reach the API at <code>${window.API_BASE_URL}</code>.</p>`);
+    } finally {
+      $("submit").disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

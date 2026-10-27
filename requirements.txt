@@ -1,23 +1,12 @@
-# Pinned with == so every machine (laptop, CI, Docker) gets the same versions.
-# The DVC train stage depends on this file, so upgrading a library retrains the model.
+# Runtime dependencies: exactly what the API container needs, nothing more.
+# Pipeline, training and test tools live in requirements-dev.txt.
+# Pinned with == so laptop, CI and Docker all get the same versions.
 
-# Data versioning + pipeline
-dvc[s3]==3.67.1
-
-# ML
 numpy==2.5.4
-pandas==3.1.0
-scikit-learn==1.9.1
 scipy==1.18.1  # xgboost dependency, pinned so the Docker image matches
 xgboost-cpu==3.4.1  # CPU-only build: skips ~300 MB of CUDA libraries
 PyYAML==6.0.3
 
-# Serving
 fastapi==0.162.0
 uvicorn[standard]==0.54.0
 pydantic==2.14.1
-
-# Dev / CI
-pytest==9.1.1
-httpx==0.28.1
-ruff==0.17.2

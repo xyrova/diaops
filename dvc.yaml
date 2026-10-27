@@ -27,6 +27,7 @@ stages:
       - src/train.py
       - src/features.py
       - requirements.txt          # a library upgrade retrains the model
+      - requirements-dev.txt      # (pandas / scikit-learn live here)
     params:
       - train
     outs:

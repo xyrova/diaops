@@ -1,0 +1,13 @@
+-r requirements.txt
+
+# Data versioning + pipeline
+dvc[s3]==3.67.1
+
+# Training / evaluation (not needed to serve the model)
+pandas==3.1.0
+scikit-learn==1.9.1
+
+# Dev / CI
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.17.2
