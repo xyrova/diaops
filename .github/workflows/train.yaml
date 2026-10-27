@@ -36,7 +36,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
 
         permissions:
-            contents: read
+            contents: write
             id-token: write # Needed for this workflow to obtain JWT token from github
             # which will be used to authenticate on AWS through configured OIDC
 
