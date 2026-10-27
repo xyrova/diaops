@@ -226,3 +226,4 @@ CLAUDE.md
 data/*.csv
 data/incoming/
 /models
+dvc_plots/

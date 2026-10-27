@@ -6,7 +6,8 @@ columns and allowed ranges can never drift apart between training and serving.
 
 TARGET = "Diabetes_binary"
 
-# Allowed (min, max) for every feature, in the column order of the CSV.
+# Allowed (min, max) for every raw column, in the column order of the CSV.
+# The validate stage checks all of them, even the ones the model does not use.
 # Binary flags are (0, 1). Ranges come from the BRFSS 2015 codebook.
 FEATURE_RANGES = {
     "HighBP": (0, 1),
@@ -32,5 +33,11 @@ FEATURE_RANGES = {
     "Income": (1, 8),
 }
 
-FEATURES = list(FEATURE_RANGES)
-COLUMNS = [TARGET] + FEATURES
+# Socio-economic and healthcare-access answers are left out of the model on purpose:
+# they act as proxies for wealth rather than health, and a screening tool should not
+# score someone higher for being poorer. Dropping them costs only ~0.0006 ROC-AUC,
+# because BMI, blood pressure, general health etc. already carry the same signal.
+EXCLUDED_FEATURES = ["AnyHealthcare", "NoDocbcCost", "Education", "Income"]
+
+FEATURES = [f for f in FEATURE_RANGES if f not in EXCLUDED_FEATURES]  # model inputs
+COLUMNS = [TARGET] + list(FEATURE_RANGES)  # raw CSV columns

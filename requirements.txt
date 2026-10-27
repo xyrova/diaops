@@ -8,6 +8,7 @@ dvc[s3]==3.67.1
 numpy==2.5.4
 pandas==3.1.0
 scikit-learn==1.9.1
+scipy==1.18.1  # xgboost dependency, pinned so the Docker image matches
 xgboost-cpu==3.4.1  # CPU-only build: skips ~300 MB of CUDA libraries
 PyYAML==6.0.3
 
