@@ -59,10 +59,14 @@ stages:
       hash: md5
       md5: 54fb7b084106beb09a38c26b50bbd153
       size: 5556638
+    - path: requirements-dev.txt
+      hash: md5
+      md5: b84cdd74faaa8583f73a154fc363d8e4
+      size: 210
     - path: requirements.txt
       hash: md5
-      md5: 8364bfb324ed0a722f01429a5f8cb422
-      size: 545
+      md5: b117715e65a67764a541bf40251d0bb9
+      size: 442
     - path: src/features.py
       hash: md5
       md5: 03dba081a6519420629aa2461153c41e
