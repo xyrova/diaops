@@ -1,0 +1,147 @@
+name: Release
+
+on:
+    push:
+        tags:
+        -   'v*.*.*'
+
+    workflow_dispatch:
+
+concurrency:
+    group: release
+    cancel-in-progress: false # DOn't interrupt the ongoing release process
+    # to prevent any inconsistencies. Any triggered run will be queued ( max: 1)
+    # the latest triggered run will replace the existing triggers in waiting queue
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+    build-push:
+        name: Build and Push Docker Image to ECR
+        runs-on: ubuntu-22.04
+
+        steps:
+        -   name: Checkout
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+        -   name: Setup Python
+            uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0
+            with:
+                python-version: '3.12'
+                cache: 'pip'
+                cache-dependency-path: 'requirements-dev.txt'
+
+        -   name: Debug OIDC claims
+            run: |
+                curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+                  | jq -r .value | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq '{sub, aud, repository}'
+
+
+        -   name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd #v6.3.0
+            with:
+                role-to-assume: ${{ vars.AWS_RELEASE_ROLE_ARN }}
+                aws-region: ${{ vars.AWS_REGION }}
+
+        -   name: Install dvc and Pull the Models
+            run: |
+                pip install dvc[s3]==3.67.1
+                dvc pull -v models/model.json
+          
+        -   name: Login to Docker Registry (ECR)
+            uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 #v4.0.0
+            with:
+                registry: public.ecr.aws
+            env:
+                AWS_REGION: us-east-1
+            # Public ECR auth API only exists in us-east-1 region
+        
+        -   name: Setup Docker Buildx
+            uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd #v4.0.0
+
+        -   name: Extract Docker Image Metadata
+            id: meta
+            uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf #v6.0.0
+            # Build the Image with full "sha-<commit-id>" tag and git tag
+            with:
+                images: |
+                    public.ecr.aws/y0f7b8d9/xyrova/diaops-core-api
+                tags: |
+                    type=semver,pattern={{version}}
+                    type=sha,format=long
+                flavor: |
+                    latest=false
+        
+        -   name: Build and Push the Image
+            uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 #v7.0.0
+            with:
+                context: .
+                push: true
+                tags: ${{ steps.meta.outputs.tags }}
+
+    prod-release:
+        name: Release to Production
+        runs-on: ubuntu-22.04
+        needs: build-push
+
+        steps:
+        -   name: Checkout
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+        -   name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd #v6.3.0
+            with:
+                role-to-assume: ${{ vars.AWS_RELEASE_ROLE_ARN }}
+                aws-region: ${{ vars.AWS_REGION }}
+
+        -   name: Deploy to EC2 Inference API server
+            # The sha-<commit> tag is pushed on every run by build-push, so it always
+            # points at exactly the image built for this commit.
+            env:
+                IMAGE: public.ecr.aws/y0f7b8d9/xyrova/diaops-core-api:sha-${{ github.sha }}
+                INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+                CORS_ORIGIN: ${{ vars.CORS_ORIGIN }}
+            run:    |
+                # Build the SSM command list with jq so shell quoting can't break it.
+                jq -n --arg img "$IMAGE" --arg cors "$CORS_ORIGIN" '{commands: [
+                    "set -e",
+                    "docker pull \($img)",
+                    "docker rm -f diaops || true",
+                    "docker run -d --name diaops --restart unless-stopped -p 8000:8000 --read-only --cap-drop ALL --security-opt no-new-privileges -e CORS_ORIGINS=\($cors) \($img)"
+                ]}' > ssm-commands.json
+
+                CMD_ID=$(aws ssm send-command \
+                    --instance-ids "$INSTANCE_ID" \
+                    --document-name AWS-RunShellScript \
+                    --comment "DiaOps deploy ${GITHUB_REF_NAME}" \
+                    --parameters file://ssm-commands.json \
+                    --query Command.CommandId --output text)
+                echo "SSM command: $CMD_ID"
+
+                # send-command only queues the command: wait for it, show its output,
+                # and fail this step unless it actually succeeded on the instance.
+                aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+                aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+                    --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'
+                STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+                    --query Status --output text)
+                [ "$STATUS" = "Success" ]
+
+        -   name: Health check Inference API
+            run:    |
+                for i in $(seq 1 20); do
+                    curl -fsS "${{ vars.API_BASE_URL }}/health" && exit 0
+                    sleep 3
+                done
+                echo "API did not become healthy at ${{ vars.API_BASE_URL }}"
+                exit 1
+
+        -   name: Deploy Frontend to S3
+            run:    |
+                echo "window.API_BASE_URL = \"${{ vars.API_BASE_URL }}\";" > frontend/config.js
+                aws s3 sync frontend s3://diaops-web-412341941552-ap-south-1-an --delete
+                aws s3 cp frontend/config.js s3://diaops-web-412341941552-ap-south-1-an/config.js \
+                    --cache-control no-cache
