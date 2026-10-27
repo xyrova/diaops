@@ -1,0 +1,95 @@
+name: Training
+
+on:
+    push:
+        branches: [main]
+        # Only changes that can affect the model trigger training.
+        # dvc.lock and metrics.json are deliberately NOT listed, so the bot's
+        # commit-back at the end of this workflow can't retrigger it.
+        paths:
+            - 'src/**'
+            - 'scripts/**'
+            - 'params.yaml'
+            - 'dvc.yaml'
+            - 'data/**/*.dvc'
+            - 'requirements.txt'
+            - 'requirements-dev.txt'
+
+    # For manual re-training of model
+    workflow_dispatch:
+        inputs:
+            force-training:
+                description: 'Retrain even if nothing changed (dvc repro --force)'
+                type: boolean
+                default: false
+
+# Never run two trainings at once
+concurrency:
+    group: train
+    cancel-in-progress: false
+
+jobs:
+    train-model:
+        name: Model Training
+        runs-on: ubuntu-22.04
+
+        if: github.ref == 'refs/heads/main'
+
+        permissions:
+            contents: read
+            id-token: write # Needed for this workflow to obtain JWT token from github
+            # which will be used to authenticate on AWS through configured OIDC
+
+        steps:
+        -   name: Checkout
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+        -   name: Setup Python
+            uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0
+            with:
+                python-version: '3.12'
+                cache: 'pip'
+                cache-dependency-path: 'requirements-dev.txt'
+
+        -   name: Install Dependencies
+            run:    |
+                pip install -r requirements-dev.txt
+
+        -   name: Authenticate to AWS
+            uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd #v6.3.0
+            with:
+                role-to-assume: ${{ vars.AWS_TRAIN_ROLE_ARN }}
+                aws-region: ${{ vars.AWS_REGION }}
+
+        -   name: Pull data and cached outputs from S3
+            # Pulling the existing outputs too lets `dvc repro` skip unchanged stages.
+            run:    |
+                dvc pull
+
+        -   name: Run DVC pipeline
+            run:    |
+                dvc repro ${{ inputs.force-training && '--force' || '' }}
+
+        -   name: Gate newly trained metrics
+            # Compares with metrics.json at HEAD. On failure the job stops here:
+            # nothing is pushed to S3 and nothing is committed.
+            run:    |
+                python scripts/check_gate.py
+
+        -   name: Save new trained artifacts to S3
+            run:    |
+                dvc push
+
+        -   name: Commit Changes to Git
+            # Only dvc.lock (model lineage) and metrics.json go into Git;
+            # the data and model bytes are already in S3 from the step above.
+            run:    |
+                git config user.name "diaops-bot"
+                git config user.email "diaops-bot@users.noreply.github.com"
+                git add dvc.lock metrics.json
+                if git diff --staged --quiet; then
+                    echo "Model unchanged, nothing to commit."
+                    exit 0
+                fi
+                git commit -m "Retrain model: recall $(jq .recall metrics.json), ROC-AUC $(jq .roc_auc metrics.json)"
+                git push origin HEAD:main
