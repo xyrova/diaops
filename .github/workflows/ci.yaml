@@ -1,0 +1,51 @@
+name: CI
+
+on:
+    pull_request:
+        branches: [main]
+
+permissions:
+    contents: read
+
+# A new push to the same PR cancels the current workflow run because
+# testing the old code for same PR makes no sense
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    test:
+        name: Unit Testing
+        runs-on: ubuntu-22.04
+        steps:
+        -   name: Checkout
+            uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+        -   name: Setup Python
+            uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0
+            with:
+                python-version: '3.12'
+                cache: 'pip'
+                cache-dependency-path: 'requirements-dev.txt'
+
+        -   name: Install Dependencies
+            run:    |
+                pip install -r requirements-dev.txt
+
+        -   name: Run Linters (Ruff)
+            run:    |
+                ruff check .
+                ruff format --check .
+
+        -   name: Run Unit Tests
+            run:    |
+                pytest -q
+
+        -   name: Run pipeline on committed sample
+            run:    |
+                mkdir -p data/raw
+                cp tests/sample/sample.csv data/raw/
+                python -m src.validate
+                python -m src.prepare
+                python -m src.train
+                python -m src.evaluate
