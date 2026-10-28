@@ -82,7 +82,7 @@ stages:
           seed: 42
           n_jobs: 4
           xgboost:
-            n_estimators: 250
+            n_estimators: 300
             max_depth: 5
             learning_rate: 0.03
             subsample: 0.8
@@ -96,8 +96,8 @@ stages:
     outs:
     - path: models
       hash: md5
-      md5: 136a70c0f6584435738bb8fc09be51d3.dir
-      size: 927771
+      md5: 52203f35e6281b0a1e07e9b8e5cde416.dir
+      size: 1098473
       nfiles: 1
   evaluate:
     cmd: python -m src.evaluate
@@ -108,8 +108,8 @@ stages:
       size: 1389313
     - path: models
       hash: md5
-      md5: 136a70c0f6584435738bb8fc09be51d3.dir
-      size: 927771
+      md5: 52203f35e6281b0a1e07e9b8e5cde416.dir
+      size: 1098473
       nfiles: 1
     - path: src/evaluate.py
       hash: md5
@@ -127,13 +127,13 @@ stages:
     outs:
     - path: metrics.json
       hash: md5
-      md5: 98cafc1029cd9e2061c2d43a723b6be8
-      size: 113
+      md5: d8a2ddf017d783a2bea28f2572ef333a
+      size: 112
     - path: plots/pr.csv
       hash: md5
-      md5: 07b29f0237e48b9ec59a24446be90728
-      size: 3554
+      md5: 9412c8dc1a9f14d4fc171c4d664ac33c
+      size: 3570
     - path: plots/roc.csv
       hash: md5
-      md5: 3274ea64388d682512c144e8f15a8b71
-      size: 3554
+      md5: ea586c13d21541e3cb3ee5f42e0232cd
+      size: 3548
