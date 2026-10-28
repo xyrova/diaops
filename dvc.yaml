@@ -58,4 +58,4 @@ plots:
   - plots/pr.csv:
       x: recall
       y: precision
-      title: Precision-Recall curve
+      title: Precision-Recall  curve
